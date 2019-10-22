@@ -197,6 +197,21 @@ void CompliantControl::updateWrench(geometry_msgs::WrenchStamped wrench_data)
   {
     wrench_[i] = wrench_filters_[i].filter(biasedFT[i]);
   }
+
+  // DEBUG:
+  // ROS_WARN_STREAM_THROTTLE(2, "\nBiased wrench: [" << wrench_data.wrench.force.x - bias_[0] << 
+  //                               ", " << wrench_data.wrench.force.y - bias_[1] <<
+  //                               ", " << wrench_data.wrench.force.z - bias_[2] <<
+  //                               ", " << wrench_data.wrench.torque.x - bias_[3] <<
+  //                               ", " << wrench_data.wrench.torque.y - bias_[4] <<
+  //                               ", " << wrench_data.wrench.torque.z - bias_[5] <<
+  //                               "].\nDeadbanded wrench: [" << biasedFT[0] <<
+  //                               ", " << biasedFT[1] <<
+  //                               ", " << biasedFT[2] <<
+  //                               ", " << biasedFT[3] <<
+  //                               ", " << biasedFT[4] <<
+  //                               ", " << biasedFT[5] << "].\n\n\n");
+  // /DEBUG
 }
 
 wrench_to_joint_vel_pub::ExitCondition CompliantControl::getVelocity(std::vector<double> v_in,

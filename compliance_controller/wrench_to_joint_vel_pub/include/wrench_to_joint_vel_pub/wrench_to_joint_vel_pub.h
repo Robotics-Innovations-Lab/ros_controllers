@@ -175,6 +175,7 @@ private:
   geometry_msgs::WrenchStamped last_wrench_data_;
 
   ros::Publisher compliant_velocity_pub_;
+  ros::Publisher biased_wrench_pub_; // DEBUG
 
   ros::Subscriber joints_sub_;
 

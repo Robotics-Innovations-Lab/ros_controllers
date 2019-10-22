@@ -104,6 +104,9 @@ PublishCompliantJointVelocities::PublishCompliantJointVelocities() : tf_listener
   compliant_velocity_pub_ =
       n_.advertise<compliance_control_msgs::CompliantVelocities>(compliance_params_.outgoing_joint_vel_topic, 1);
 
+  biased_wrench_pub_ = 
+      n_.advertise<geometry_msgs::WrenchStamped>("DEBUG/" + compliance_params_.outgoing_joint_vel_topic, 1); // DEBUG
+
   joints_sub_ = n_.subscribe("joint_states", 1, &PublishCompliantJointVelocities::jointsCallback, this);
 }
 
@@ -209,6 +212,19 @@ void PublishCompliantJointVelocities::spin()
       std::vector<double> velocity(6);
       // Calculate the compliant velocity adjustment
       compliant_control_ptr_->getVelocity(velocity, last_wrench_data_, velocity, ros::Time::now());
+
+      // DEBUG
+      geometry_msgs::WrenchStamped debug_wrench; // DEBUG
+      debug_wrench.header.stamp = ros::Time::now();
+      debug_wrench.wrench.force.x = compliant_control_ptr_->wrench_[0];
+      debug_wrench.wrench.force.y = compliant_control_ptr_->wrench_[1];
+      debug_wrench.wrench.force.z = compliant_control_ptr_->wrench_[2];
+      debug_wrench.wrench.torque.x = compliant_control_ptr_->wrench_[3];
+      debug_wrench.wrench.torque.y = compliant_control_ptr_->wrench_[4];
+      debug_wrench.wrench.torque.z = compliant_control_ptr_->wrench_[5];
+
+      biased_wrench_pub_.publish(debug_wrench);
+      // /DEBUG
 
       geometry_msgs::Vector3Stamped translational_velocity;
       translational_velocity.header.frame_id = compliance_params_.force_torque_frame_name;

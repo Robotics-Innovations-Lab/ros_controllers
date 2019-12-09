@@ -72,12 +72,12 @@ CompliantControl::CompliantControl(const std::vector<double>& stiffness, const s
 
 void CompliantControl::biasSensor(const geometry_msgs::WrenchStamped& bias)
 {
-  bias_[0] = bias.wrench.force.x;
-  bias_[1] = bias.wrench.force.y;
-  bias_[2] = bias.wrench.force.z;
-  bias_[3] = bias.wrench.torque.x;
-  bias_[4] = bias.wrench.torque.y;
-  bias_[5] = bias.wrench.torque.z;
+  bias_[0] = bias.wrench.force.x - ee_weight_bias_[0];
+  bias_[1] = bias.wrench.force.y - ee_weight_bias_[1];
+  bias_[2] = bias.wrench.force.z - ee_weight_bias_[2];
+  bias_[3] = bias.wrench.torque.x - ee_weight_bias_[3];
+  bias_[4] = bias.wrench.torque.y - ee_weight_bias_[4];
+  bias_[5] = bias.wrench.torque.z - ee_weight_bias_[5];
 
   // Reset
   wrench_dot_.resize(wrench_to_joint_vel_pub::NUM_DIMS, 0);

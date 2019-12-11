@@ -109,3 +109,28 @@ The rosservice call to toggle compliance ON/OFF is:
 		rosservice call /compliance_controller/toggle_compliance "{}"
 
 It defaults to no compliance.
+
+### Enable/disable compliance in specific dimensions
+
+Make a service call to disable translational X/Y compliance:
+
+rosservice call /wrench_to_joint_vel_pub/disable_compliance_dimensions "dimensions_to_ignore:
+  layout:
+    dim:
+    - label: ''
+      size: 0
+      stride: 0
+    data_offset: 0
+  data: [0, 1]"
+
+Enable compliance in all dimensions:
+
+rosservice call /wrench_to_joint_vel_pub/disable_compliance_dimensions "dimensions_to_ignore:
+  layout:
+    dim:
+    - label: ''
+      size: 0
+      stride: 0
+    data_offset: 0
+  data: []"
+

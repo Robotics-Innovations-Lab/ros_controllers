@@ -431,4 +431,16 @@ typedef compliance_controller::ComplianceController<trajectory_interface::Quinti
     ComplianceController;
 }
 
+// Set up namespacing of controllers and create their plugins.
+namespace position_controllers
+{
+/**
+ * \brief Add compliance to trajectories and/or velocity commands.
+ */
+typedef compliance_controller::ComplianceController<trajectory_interface::QuinticSplineSegment<double>,
+                                                    hardware_interface::PositionJointInterface>
+    ComplianceController;
+}
+
 PLUGINLIB_EXPORT_CLASS(velocity_controllers::ComplianceController, controller_interface::ControllerBase)
+PLUGINLIB_EXPORT_CLASS(position_controllers::ComplianceController, controller_interface::ControllerBase)

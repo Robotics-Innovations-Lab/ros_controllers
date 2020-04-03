@@ -8,4 +8,12 @@
   </description>
   </class>
 
+  <class name="position_controllers/TrajOrJogController"
+	type="position_controllers::TrajOrJogController"
+	base_class_type="controller_interface::ControllerBase">
+  <description>
+    A controller accepting trajectories or velocity commands.
+  </description>
+  </class>
+
 </library>

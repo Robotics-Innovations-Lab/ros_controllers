@@ -90,4 +90,15 @@ namespace velocity_controllers
           TrajOrJogController;
 }
 
+namespace position_controllers
+{
+  /**
+   * \brief A combination of a JointTrajectoryController with a ForwardJointGroupCommand controller.
+   */
+  typedef traj_or_jog_controller::TrajOrJogController<trajectory_interface::QuinticSplineSegment<double>,
+                                                                 hardware_interface::PositionJointInterface>
+          TrajOrJogController;
+}
+
 PLUGINLIB_EXPORT_CLASS(velocity_controllers::TrajOrJogController, controller_interface::ControllerBase)
+PLUGINLIB_EXPORT_CLASS(position_controllers::TrajOrJogController, controller_interface::ControllerBase)

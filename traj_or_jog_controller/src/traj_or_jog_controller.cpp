@@ -40,7 +40,19 @@ void TrajOrJogController<SegmentImpl, HardwareInterface>::update(const ros::Time
     std::vector<double> & command = *commands_buffer_.readFromRT();
     for(unsigned int i=0; i<n_joints_; ++i)
     {
-      JointTrajectoryController::joints_[i].setCommand(command[i]);
+      JointTrajectoryController::desired_state_.velocity[i] = command[i];
+      JointTrajectoryController::desired_state_.position[i] = JointTrajectoryController::current_state_.position[i] + period.toSec() * command[i];
+
+      JointTrajectoryController::state_error_.position[i] =
+        angles::shortest_angular_distance(JointTrajectoryController::current_state_.position[i],
+                                          JointTrajectoryController::desired_state_.position[i]);
+      JointTrajectoryController::state_error_.velocity[i] = JointTrajectoryController::desired_state_.velocity[i] -
+                                                          JointTrajectoryController::joints_[i].getVelocity();
+      JointTrajectoryController::state_error_.acceleration[i] = 0.0;
+
+      JointTrajectoryController::hw_iface_adapter_.updateCommand(JointTrajectoryController::time_data_.readFromRT()->uptime + period, period,
+                                                             JointTrajectoryController::desired_state_,
+                                                             JointTrajectoryController::state_error_);
     }
   }
   // If trajectory execution is allowed
@@ -52,7 +64,7 @@ void TrajOrJogController<SegmentImpl, HardwareInterface>::update(const ros::Time
     // Back to real-time velocity control if the trajectory is complete
     if (JointTrajectoryController::rt_active_goal_ == NULL)
     {
-      TrajOrJogController::allow_trajectory_execution_ = false;
+      // TrajOrJogController::allow_trajectory_execution_ = false;
     }
   }
 }

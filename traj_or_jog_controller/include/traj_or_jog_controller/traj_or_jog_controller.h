@@ -77,6 +77,11 @@ protected:
       return; 
     }
     commands_buffer_.writeFromNonRT(msg->data);
+
+    for(unsigned int i=0; i<n_joints_; ++i)
+    {
+      JointTrajectoryController::current_state_.position[i] = JointTrajectoryController::joints_[i].getPosition();
+    }
   }
 
   /**

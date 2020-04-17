@@ -52,54 +52,46 @@ void ComplianceController<SegmentImpl, HardwareInterface>::update(const ros::Tim
   bool stale_compliance_command =
       ((ros::Time::now() - last_compliance_adjustment_stamp_) > compliance_command_timeout_);
 
-  // If trajectory execution is not active
-  if (!TrajOrJogController::allow_trajectory_execution_)
+  // Reasons to NOT do compliance. Just update with TrajOrJogController
+  // 1) Compliance is disabled
+  // 2) The compliant adjustment is stale
+  // 3) We are near a joint limit
+  if(!compliance_enabled_ || stale_compliance_command || near_joint_limit_)
   {
-    std::vector<double>& command = *TrajOrJogController::commands_buffer_.readFromRT();
-    if (command.size() > 0)
-    {
-      for (unsigned int i = 0; i < JointTrajectoryController::joints_.size(); ++i)
-      {
-        // Add the compliance adjustment if:
-        // it has been received recently,
-        // robot is not near a joint limit,
-        // compliance is enabled
-        if (!stale_compliance_command && !near_joint_limit_ && compliance_enabled_)
-        {
-          JointTrajectoryController::joints_[i].setCommand(command[i] + compliance_velocity_adjustment_.data[i]);
-        }
-        else
-        {
-          JointTrajectoryController::joints_[i].setCommand(command[i]);
-        }
-      }
-    }
-    else
-    {
-      for (unsigned int i = 0; i < JointTrajectoryController::joints_.size(); ++i)
-      {
-        JointTrajectoryController::joints_[i].setCommand(0);
-      }
-    }
+    TrajOrJogController::update(time,period);
   }
-  // If trajectory execution is allowed
-  else
+  else // compliance command is good, use compliance
   {
-    // Update the base class, JointTrajectoryController
-    if (!stale_compliance_command && !near_joint_limit_ && compliance_enabled_)
+    // If we are following a trajectory, do trajectory compliance
+    if (TrajOrJogController::allow_trajectory_execution_)
     {
       ComplianceController::updateJointTrajControllerWithCompliace(time, period);
-    }
-    // Regular update, without adding a compliance adjustment
-    else
-    {
-      JointTrajectoryController::update(time, period);
-    }
 
-    // Back to real-time velocity control if the trajectory is complete
-    if (JointTrajectoryController::rt_active_goal_ == NULL)
+      // Back to real-time velocity control if the trajectory is complete
+      if (JointTrajectoryController::rt_active_goal_ == NULL)
+      {
+        ComplianceController::activateVelocityStreaming();
+      }
+    }
+    else // We want to compliant jog
     {
-      ComplianceController::activateVelocityStreaming();
+      std::vector<double>& command = *TrajOrJogController::commands_buffer_.readFromRT();
+      for(unsigned int i=0; i<TrajOrJogController::n_joints_; ++i)
+      {
+        JointTrajectoryController::desired_state_.velocity[i] = command[i] + compliance_velocity_adjustment_.data[i];
+        JointTrajectoryController::desired_state_.position[i] = JointTrajectoryController::current_state_.position[i] + period.toSec() * JointTrajectoryController::desired_state_.velocity[i];
+
+        JointTrajectoryController::state_error_.position[i] =
+          angles::shortest_angular_distance(JointTrajectoryController::current_state_.position[i],
+                                            JointTrajectoryController::desired_state_.position[i]);
+        JointTrajectoryController::state_error_.velocity[i] = JointTrajectoryController::desired_state_.velocity[i] -
+                                                            JointTrajectoryController::joints_[i].getVelocity();
+        JointTrajectoryController::state_error_.acceleration[i] = 0.0;
+
+        JointTrajectoryController::hw_iface_adapter_.updateCommand(JointTrajectoryController::time_data_.readFromRT()->uptime + period, period,
+                                                              JointTrajectoryController::desired_state_,
+                                                              JointTrajectoryController::state_error_);
+      }
     }
   }
 }
@@ -145,7 +137,7 @@ bool ComplianceController<SegmentImpl, HardwareInterface>::init(HardwareInterfac
 template <class SegmentImpl, class HardwareInterface>
 void ComplianceController<SegmentImpl, HardwareInterface>::activateVelocityStreaming()
 {
-  TrajOrJogController::allow_trajectory_execution_ = false;
+  // TrajOrJogController::allow_trajectory_execution_ = false;
   last_trajectory_update_time_ = ros::Time(0);
   compliance_velocity_adjustment_.data.resize(TrajOrJogController::n_joints_, 0);
   integrated_traj_position_adjustment_.resize(TrajOrJogController::n_joints_, 0);

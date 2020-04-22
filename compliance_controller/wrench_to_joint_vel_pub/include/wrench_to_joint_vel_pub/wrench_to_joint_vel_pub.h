@@ -37,11 +37,9 @@
 //
 ///////////////////////////////////////////////////////////////////////////////
 
-#ifndef WRENCH_TO_JOINT_VEL_PUB_H
-#define WRENCH_TO_JOINT_VEL_PUB_H
+#pragma once
 
-#include <compliance_control_msgs/AdjustDamping.h>
-#include <compliance_control_msgs/AdjustStiffness.h>
+#include <compliance_control_msgs/AdjustComplianceParams.h>
 #include <compliance_control_msgs/CompliantVelocities.h>
 #include <compliance_control_msgs/DisableComplianceDimensions.h>
 #include <Eigen/Core>
@@ -57,6 +55,7 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <tf2_ros/transform_listener.h>
 #include <wrench_to_joint_vel_pub/compliant_control.h>
+#include <sstream>
 
 namespace wrench_to_joint_vel_pub
 {
@@ -65,10 +64,11 @@ static const char* const NODE_NAME = "wrench_to_joint_vel_pub";
 struct ROSParameters
 {
   double spin_rate, max_allowable_cmd_magnitude, low_pass_filter_param, highest_allowable_force,
-      highest_allowable_torque, joint_limit_margin;
+      highest_allowable_torque, joint_limit_margin, condition_number_limit, ee_weight;
   std::string jacobian_frame_name, force_torque_frame_name, force_torque_topic, move_group_name,
-      outgoing_joint_vel_topic;
-  std::vector<double> stiffness, damping, deadband, end_condition_wrench;
+      outgoing_joint_vel_topic, gravity_frame_name;
+  std::vector<double> stiffness, damping, deadband, end_condition_wrench, default_dimensions, ee_com;
+  bool compensate_for_ee_weight;
 };
 
 class PublishCompliantJointVelocities
@@ -106,14 +106,14 @@ private:
   /**
    * A service callback. Adjust stiffness constants.
    */
-  bool adjustStiffness(compliance_control_msgs::AdjustStiffness::Request& req,
-                                   compliance_control_msgs::AdjustStiffness::Response& res);
+  bool adjustStiffness(compliance_control_msgs::AdjustComplianceParams::Request& req,
+                                   compliance_control_msgs::AdjustComplianceParams::Response& res);
 
   /**
    * A service callback. Adjust damping constants.
    */
-  bool adjustDamping(compliance_control_msgs::AdjustDamping::Request& req,
-                                   compliance_control_msgs::AdjustDamping::Response& res);
+  bool adjustDamping(compliance_control_msgs::AdjustComplianceParams::Request& req,
+                                   compliance_control_msgs::AdjustComplianceParams::Response& res);
 
   /**
    * A service callback. Biases (aka tares, aka zeroes) the compliance calculations
@@ -175,6 +175,7 @@ private:
   geometry_msgs::WrenchStamped last_wrench_data_;
 
   ros::Publisher compliant_velocity_pub_;
+  ros::Publisher debug_pub_; // DEBUG
 
   ros::Subscriber joints_sub_;
 
@@ -185,11 +186,10 @@ private:
   Eigen::VectorXd delta_theta_;
 
   // Track degrees of freedom to drop
-  // By default, ignore compliance in dimensions 4,5
-  // i.e. pitch/yaw
-  std::vector<int> dof_to_drop_{4, 5};
+  // By default, ignore compliance in dimensions 3,4,5
+  // i.e. roll/pitch/yaw
+  std::vector<bool> compliant_dofs_;
+  size_t num_output_dofs_; // Tracks the output DOF's (in case it != 6)
 };
 
 }  // namespace wrench_to_joint_vel_pub
-
-#endif  // WRENCH_TO_JOINT_VEL_PUB_H

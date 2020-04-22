@@ -8,4 +8,12 @@
   </description>
   </class>
 
+  <class name="position_controllers/ComplianceController"
+	type="position_controllers::ComplianceController"
+	base_class_type="controller_interface::ControllerBase">
+  <description>
+    Add compliance to trajectories or velocity commands.
+  </description>
+  </class>
+
 </library>

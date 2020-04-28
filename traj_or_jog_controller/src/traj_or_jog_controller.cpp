@@ -21,6 +21,7 @@ bool TrajOrJogController<SegmentImpl, HardwareInterface>::init(HardwareInterface
   commands_buffer_.writeFromNonRT(std::vector<double>(n_joints_, 0.0));
 
   allow_trajectory_execution_ = false;
+  trajectory_is_active_ = false;
 
   return true;
 }
@@ -61,12 +62,16 @@ void TrajOrJogController<SegmentImpl, HardwareInterface>::update(const ros::Time
     // Update the base class, JointTrajectoryController
     JointTrajectoryController::update(time, period);
 
-    // Back to real-time velocity control if the trajectory is complete
-    if (JointTrajectoryController::rt_active_goal_ == NULL)
+    // Back to real-time velocity control if we see the trajectory finish
+    // The rt_active_goal_ can lag allow_trajectory_execution_, so we want to make sure we watch it True -> False
+    if (trajectory_is_active_ && JointTrajectoryController::rt_active_goal_ == NULL)
     {
-      // TrajOrJogController::allow_trajectory_execution_ = false;
+      TrajOrJogController::allow_trajectory_execution_ = false;
     }
   }
+
+  // Update the tracking of rt_active_goal_ pointer
+  trajectory_is_active_ = JointTrajectoryController::rt_active_goal_ != NULL;
 }
 
 /**

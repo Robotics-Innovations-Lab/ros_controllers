@@ -67,8 +67,9 @@ void ComplianceController<SegmentImpl, HardwareInterface>::update(const ros::Tim
     {
       ComplianceController::updateJointTrajControllerWithCompliace(time, period);
 
-      // Back to real-time velocity control if the trajectory is complete
-      if (JointTrajectoryController::rt_active_goal_ == NULL)
+      // Back to real-time velocity control if we see the trajectory finish
+      // The rt_active_goal_ can lag allow_trajectory_execution_, so we want to make sure we watch it True -> False
+      if (TrajOrJogController::trajectory_is_active_ && JointTrajectoryController::rt_active_goal_ == NULL)
       {
         ComplianceController::activateVelocityStreaming();
       }
@@ -93,6 +94,9 @@ void ComplianceController<SegmentImpl, HardwareInterface>::update(const ros::Tim
                                                               JointTrajectoryController::state_error_);
       }
     }
+
+    // Update the tracking of rt_active_goal_ pointer
+    TrajOrJogController::trajectory_is_active_ = JointTrajectoryController::rt_active_goal_ != NULL;
   }
 }
 
@@ -137,7 +141,7 @@ bool ComplianceController<SegmentImpl, HardwareInterface>::init(HardwareInterfac
 template <class SegmentImpl, class HardwareInterface>
 void ComplianceController<SegmentImpl, HardwareInterface>::activateVelocityStreaming()
 {
-  // TrajOrJogController::allow_trajectory_execution_ = false;
+  TrajOrJogController::allow_trajectory_execution_ = false;
   last_trajectory_update_time_ = ros::Time(0);
   compliance_velocity_adjustment_.data.resize(TrajOrJogController::n_joints_, 0);
   integrated_traj_position_adjustment_.resize(TrajOrJogController::n_joints_, 0);

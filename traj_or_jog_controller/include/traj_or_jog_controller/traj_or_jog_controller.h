@@ -59,6 +59,7 @@ protected:
 
   ros::Subscriber  velocity_command_sub_;
   bool allow_trajectory_execution_; ///< Current mode.
+  bool trajectory_is_active_; ///< Tracks the joint trajectory pointer
 
   /**
    * \brief Callback for real-time JointGroupVelocityController commands.

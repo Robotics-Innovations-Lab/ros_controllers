@@ -23,6 +23,9 @@ bool TrajOrJogController<SegmentImpl, HardwareInterface>::init(HardwareInterface
   allow_trajectory_execution_ = false;
   trajectory_is_active_ = false;
 
+  traj_jog_current_state_ = typename JointTrajectoryController::Segment::State(n_joints_);
+  traj_jog_desired_state_ = typename JointTrajectoryController::Segment::State(n_joints_);
+
   return true;
 }
 
@@ -34,27 +37,34 @@ void TrajOrJogController<SegmentImpl, HardwareInterface>::update(const ros::Time
   // command can interrupt a trajectory at any time.
   // The member variable allow_trajectory_execution_ determines which controller gets updated.
 
+  getCurrentState();
+
   // If trajectory execution is not active
   if ( !allow_trajectory_execution_ )
   {
     JointTrajectoryController::preemptActiveGoal();
-    std::vector<double> & command = *commands_buffer_.readFromRT();
-    for(unsigned int i=0; i<n_joints_; ++i)
+
+    // ADAM TODO: Parameterize this timeout duration
+    bool stale_jog_command = ((ros::Time::now() - last_jog_cmd_stamp_) > ros::Duration(0.1));
+
+    // If the jog command is not stale, use it to update the desired state
+    if(!stale_jog_command)
     {
-      JointTrajectoryController::desired_state_.velocity[i] = command[i];
-      JointTrajectoryController::desired_state_.position[i] = JointTrajectoryController::current_state_.position[i] + period.toSec() * command[i];
-
-      JointTrajectoryController::state_error_.position[i] =
-        angles::shortest_angular_distance(JointTrajectoryController::current_state_.position[i],
-                                          JointTrajectoryController::desired_state_.position[i]);
-      JointTrajectoryController::state_error_.velocity[i] = JointTrajectoryController::desired_state_.velocity[i] -
-                                                          JointTrajectoryController::joints_[i].getVelocity();
-      JointTrajectoryController::state_error_.acceleration[i] = 0.0;
-
-      JointTrajectoryController::hw_iface_adapter_.updateCommand(JointTrajectoryController::time_data_.readFromRT()->uptime + period, period,
-                                                             JointTrajectoryController::desired_state_,
-                                                             JointTrajectoryController::state_error_);
+      std::vector<double> & command = *commands_buffer_.readFromRT();
+      for(unsigned int i=0; i<n_joints_; ++i)
+      {
+        traj_jog_desired_state_.velocity[i] = command[i];
+        traj_jog_desired_state_.position[i] = traj_jog_current_state_.position[i] + period.toSec() * command[i];
+      }
     }
+    else
+    {
+      // If the jog command is stale, keep the positions the same but set the velocity to 0
+      traj_jog_desired_state_.velocity.resize(n_joints_, 0);
+    }
+  
+    // Now send the command regardless of if we have a new or the same desired state
+    sendJogCommand(period);
   }
   // If trajectory execution is allowed
   else
@@ -67,6 +77,11 @@ void TrajOrJogController<SegmentImpl, HardwareInterface>::update(const ros::Time
     if (trajectory_is_active_ && JointTrajectoryController::rt_active_goal_ == NULL)
     {
       TrajOrJogController::allow_trajectory_execution_ = false;
+
+      // We are going back to jogging (even if it is stale)
+      // So make sure the desired state is ready for the new position and 0 velocity
+      traj_jog_desired_state_.position = traj_jog_current_state_.position;
+      traj_jog_desired_state_.velocity.resize(n_joints_, 0);
     }
   }
 
@@ -92,6 +107,30 @@ goalCB(GoalHandle gh)
   }
 
   JointTrajectoryController::goalCB(gh);
+}
+
+/**
+ * \brief This looks at the current and desired state and sends a jog command based on them
+ */
+template <class SegmentImpl, class HardwareInterface>
+void TrajOrJogController<SegmentImpl, HardwareInterface>::
+sendJogCommand(const ros::Duration& period)
+{
+  for(unsigned int i=0; i<n_joints_; ++i)
+  {
+    // Calculate the error as (desired state) - (current state)
+    JointTrajectoryController::state_error_.position[i] =
+      angles::shortest_angular_distance(traj_jog_current_state_.position[i],
+                                        traj_jog_desired_state_.position[i]);
+    JointTrajectoryController::state_error_.velocity[i] = traj_jog_desired_state_.velocity[i] -
+                                                        traj_jog_current_state_.velocity[i];
+    JointTrajectoryController::state_error_.acceleration[i] = 0.0;
+  }
+
+  // Send the command using the hardware interface adapter (safe for different joint interfaces)
+  JointTrajectoryController::hw_iface_adapter_.updateCommand(JointTrajectoryController::time_data_.readFromRT()->uptime + period, period,
+                                                          traj_jog_desired_state_,
+                                                          JointTrajectoryController::state_error_);
 }
 
 }  // namespace traj_or_jog_controller

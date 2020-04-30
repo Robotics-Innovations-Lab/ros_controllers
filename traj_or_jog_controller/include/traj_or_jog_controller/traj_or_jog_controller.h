@@ -60,6 +60,12 @@ protected:
   bool allow_trajectory_execution_; ///< Current mode.
   bool trajectory_is_active_; ///< Tracks the joint trajectory pointer
 
+  // This stores the last time a jogging command was recieved and will help tell when it is stale
+  ros::Time last_jog_cmd_stamp_;
+
+  typename JointTrajectoryController::Segment::State traj_jog_current_state_; ///< Stores the current position and velocity
+  typename JointTrajectoryController::Segment::State traj_jog_desired_state_; ///< Stores the desired position and velocity
+
   /**
    * \brief Callback for real-time JointGroupVelocityController commands.
    * Incoming commands interrupt trajectory execution.
@@ -79,15 +85,29 @@ protected:
     }
     commands_buffer_.writeFromNonRT(msg->data);
 
-    for(unsigned int i=0; i<n_joints_; ++i)
-    {
-      JointTrajectoryController::current_state_.position[i] = JointTrajectoryController::joints_[i].getPosition();
-    }
+    last_jog_cmd_stamp_ = ros::Time::now();
   }
 
   /**
    * \brief Override the callback for the JointTrajectoryController action server.
    */
   void goalCB(GoalHandle gh);
+
+  /**
+   * \brief Update and store the current joint state
+   */
+  void getCurrentState()
+  {
+    for(unsigned int i=0; i<n_joints_; ++i)
+    {
+      traj_jog_current_state_.position[i] = JointTrajectoryController::joints_[i].getPosition();
+      traj_jog_current_state_.velocity[i] = JointTrajectoryController::joints_[i].getVelocity();
+    }
+  }
+
+    /**
+   * \brief This looks at the current and desired state and sends a jog command based on them
+   */
+  void sendJogCommand(const ros::Duration& period);
 };
 }

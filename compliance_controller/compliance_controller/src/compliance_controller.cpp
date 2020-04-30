@@ -62,6 +62,9 @@ void ComplianceController<SegmentImpl, HardwareInterface>::update(const ros::Tim
   }
   else // compliance command is good, use compliance
   {
+    // Update the current state stored in TrajOrJogController
+    TrajOrJogController::getCurrentState();
+
     // If we are following a trajectory, do trajectory compliance
     if (TrajOrJogController::allow_trajectory_execution_)
     {
@@ -72,27 +75,45 @@ void ComplianceController<SegmentImpl, HardwareInterface>::update(const ros::Tim
       if (TrajOrJogController::trajectory_is_active_ && JointTrajectoryController::rt_active_goal_ == NULL)
       {
         ComplianceController::activateVelocityStreaming();
+
+        // We are going back to jogging (even if it is stale)
+        // So make sure the desired state is ready for the new position and 0 velocity
+        TrajOrJogController::traj_jog_desired_state_.position = TrajOrJogController::traj_jog_current_state_.position;
+        TrajOrJogController::traj_jog_desired_state_.velocity.resize(TrajOrJogController::n_joints_, 0);
       }
     }
     else // We want to compliant jog
     {
-      std::vector<double>& command = *TrajOrJogController::commands_buffer_.readFromRT();
-      for(unsigned int i=0; i<TrajOrJogController::n_joints_; ++i)
+      // Check to see if the jog command is stale
+      // ADAM TODO: Use the param duration here
+      bool stale_jog_command = ((ros::Time::now() - TrajOrJogController::last_jog_cmd_stamp_) > ros::Duration(0.1));
+      
+      // If the jog command is not stale, use it to update the desired state
+      if(!stale_jog_command)
       {
-        JointTrajectoryController::desired_state_.velocity[i] = command[i] + compliance_velocity_adjustment_.data[i];
-        JointTrajectoryController::desired_state_.position[i] = JointTrajectoryController::current_state_.position[i] + period.toSec() * JointTrajectoryController::desired_state_.velocity[i];
-
-        JointTrajectoryController::state_error_.position[i] =
-          angles::shortest_angular_distance(JointTrajectoryController::current_state_.position[i],
-                                            JointTrajectoryController::desired_state_.position[i]);
-        JointTrajectoryController::state_error_.velocity[i] = JointTrajectoryController::desired_state_.velocity[i] -
-                                                            JointTrajectoryController::joints_[i].getVelocity();
-        JointTrajectoryController::state_error_.acceleration[i] = 0.0;
-
-        JointTrajectoryController::hw_iface_adapter_.updateCommand(JointTrajectoryController::time_data_.readFromRT()->uptime + period, period,
-                                                              JointTrajectoryController::desired_state_,
-                                                              JointTrajectoryController::state_error_);
+        std::vector<double>& command = *TrajOrJogController::commands_buffer_.readFromRT();
+        for(unsigned int i=0; i<TrajOrJogController::n_joints_; ++i)
+        {
+          // Add the compliance velocity here
+          TrajOrJogController::traj_jog_desired_state_.velocity[i] = command[i] + compliance_velocity_adjustment_.data[i];
+          TrajOrJogController::traj_jog_desired_state_.position[i] = TrajOrJogController::traj_jog_current_state_.position[i] + period.toSec() * TrajOrJogController::traj_jog_desired_state_.velocity[i];
+        }
       }
+      else // The jog command is stale
+      {
+        // Stop looking at the jog command, but keep compliance adjustments
+        for(unsigned int i=0; i<TrajOrJogController::n_joints_; ++i)
+        {
+          // The desired velocity is just the compliance adjustment
+          TrajOrJogController::traj_jog_desired_state_.velocity[i] = compliance_velocity_adjustment_.data[i];
+
+          // We need to keep track of the compliance induced position change to update the desired position
+          TrajOrJogController::traj_jog_desired_state_.position[i] += compliance_velocity_adjustment_.data[i] * period.toSec();
+        }
+      }
+
+      // Regardless of how we set the desired state, send the command
+      TrajOrJogController::sendJogCommand(period);
     }
 
     // Update the tracking of rt_active_goal_ pointer

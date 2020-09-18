@@ -370,8 +370,18 @@ void PublishCompliantJointVelocities::spin()
       cartesian_velocity[5] = rotational_velocity.vector.z;
 
       // Multiply by the Jacobian pseudo-inverse to calculate a joint velocity vector
-      // This Jacobian is w.r.t. to the last link
-      Eigen::MatrixXd jacobian = kinematic_state_->getJacobian(joint_model_group_);
+      // We get the jacobian in the F/T frame
+      Eigen::MatrixXd jacobian;
+      Eigen::Vector3d reference_position;
+      reference_position.setZero();
+      if (!kinematic_state_->getJacobian(joint_model_group_,
+                                        joint_model_group_->getLinkModel(compliance_params_.force_torque_frame_name),
+                                        reference_position, jacobian))
+      {
+        ROS_ERROR_STREAM_THROTTLE_NAMED(1, NODE_NAME, "Error getting Jacobian");
+        rate.sleep();
+        continue;
+      }
 
       svd_ = Eigen::JacobiSVD<Eigen::MatrixXd>(jacobian, Eigen::ComputeThinU | Eigen::ComputeThinV);
 

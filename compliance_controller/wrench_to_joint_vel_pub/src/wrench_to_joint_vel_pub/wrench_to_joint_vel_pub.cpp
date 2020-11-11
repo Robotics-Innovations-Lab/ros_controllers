@@ -274,9 +274,7 @@ void PublishCompliantJointVelocities::spin()
           }
           catch (tf2::TransformException& ex)
           {
-            ROS_WARN_NAMED(NODE_NAME, "%s", ex.what());
-            ROS_WARN_NAMED(NODE_NAME,
-                          "Waiting for the transform from gravity frame to the force/torque frame to be published.");
+            ROS_WARN_THROTTLE_NAMED(1, NODE_NAME, "%s", ex.what());
             ros::Duration(0.01).sleep();
             continue;
           }
@@ -350,9 +348,7 @@ void PublishCompliantJointVelocities::spin()
         }
         catch (tf2::TransformException& ex)
         {
-          ROS_WARN_NAMED(NODE_NAME, "%s", ex.what());
-          ROS_WARN_NAMED(NODE_NAME,
-                         "Waiting for the transform from force/torque to the Jacobian frame to be published.");
+          ROS_WARN_THROTTLE_NAMED(1, NODE_NAME, "%s", ex.what());
           ros::Duration(0.01).sleep();
           continue;
         }
@@ -397,7 +393,7 @@ void PublishCompliantJointVelocities::spin()
         {
           if ((fabs(delta_theta_[i]) > largest_allowable_command) || std::isnan(delta_theta_[i]))
           {
-            ROS_WARN_STREAM_NAMED(NODE_NAME, "Magnitude of compliant command is too large. Pausing compliant commands.");
+            ROS_WARN_STREAM_THROTTLE_NAMED(1, NODE_NAME, "Magnitude of compliant command is too large. Pausing compliant commands.");
             for (int j = 0; j < delta_theta_.size(); ++j)
             {
               delta_theta_[j] = 0.;
